@@ -1,1 +1,3 @@
-data_dir: "
+pdbbind_dir: "../../data/pdbbind/"
+processed_pdbbind_dir: "../../data/processed_pdbbind/"
+ligand_stats_file: "../../data/ligand_stats.yaml"
