@@ -71,7 +71,7 @@ for target_dir in input_dir:
     pl_atom_distances = []
 
     for protein_atom in protein_atom_coords:    
-      pl_atom_distances.append(get_distance(ligand_atom, protein_atom))
+      pl_atom_distances.append(distance(ligand_atom, protein_atom))
 
     min_distance = min(pl_atom_distances)
 
@@ -108,9 +108,12 @@ for target_dir in input_dir:
   if ligand_stats['min_nearest_pl_atom_distance'] > min_closest_protein_atom_distance:
     ligand_stats['min_nearest_pl_atom_distance'] = min_closest_protein_atom_distance
 
+  print(ligand_stats)
+  sys.exit()
+
   ii+=1
   print(ii)
 
-with open(config['ligand_stats_file'], 'w') as ligand_stats_file:  
-  yaml.dump(ligand_stats, ligand_stats_file)
+# with open(config['ligand_stats_file'], 'w') as ligand_stats_file:  
+#   yaml.dump(ligand_stats, ligand_stats_file)
 

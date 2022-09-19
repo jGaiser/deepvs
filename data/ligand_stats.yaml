@@ -1,5 +1,7 @@
 max_d: 37.5606310516743
 max_h: 28.301
 max_l: 26.451999999999998
+max_nearest_pl_atom_distance: 10.925373082874561
 max_v: 9597.846643350002
 max_w: 34.122
+min_nearest_pl_atom_distance: 0.4682136264569848
