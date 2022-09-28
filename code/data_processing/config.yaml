@@ -1,3 +1,5 @@
 pdbbind_dir: "../../data/pdbbind/"
 processed_pdbbind_dir: "../../data/processed_pdbbind/"
 ligand_stats_file: "../../data/ligand_stats.yaml"
+protein_config_file: "../../data/protein_config.yaml"
+voxel_graph_dir: "../../data/graph_data/proteins/voxel_graphs/"

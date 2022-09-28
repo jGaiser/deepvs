@@ -10,6 +10,9 @@ from plip.structure.preparation import PDBComplex
 with open('config.yaml', 'r') as config_file:  
   config = yaml.safe_load(config_file)
 
+with open(config['protein_config'], 'r') as config_file:  
+  protein_config = yaml.safe_load(config_file)
+
 pdb_dir = sorted(glob.glob(config['processed_pdbbind_dir'] + "*/"))
 
 def mean(l):
