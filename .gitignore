@@ -1,2 +1,3 @@
 data/processed_pdbbind/*
 data/pdbbind/*
+data/graph_data/proteins/interaction_voxel_graphs/*
