@@ -98,6 +98,10 @@ for t_idx, target_dir in enumerate(batch):
     edgelist = []
     edge_index = [[],[]]
 
+<<<<<<< HEAD
+=======
+    with open("%s%s_2_1_0_3.vox" % (target_dir, target_id), 'r') as vox_in:
+>>>>>>> ab469db92b2cf54761b464dc0461c7f707447d12
         for line in vox_in:
             line = line.rstrip()
             voxel_data.append([float(x) for x in line.split(' ')])
@@ -167,3 +171,4 @@ for t_idx, target_dir in enumerate(batch):
     data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_features)
     pickle.dump(data, open("%s%s_pocket_graph.pkl" % (target_dir, target_id), 'wb'))
     print("%s%s_pocket_graph.pkl" % (target_dir, target_id))
+
