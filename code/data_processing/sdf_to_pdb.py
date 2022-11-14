@@ -9,6 +9,7 @@ with open('config.yaml', 'r') as config_file:
 obabel_command = "obabel -isdf %s -opdb > %s" 
 
 output_dir = config['processed_pdbbind_dir']
+
 input_dir = sorted(glob.glob(config['pdbbind_dir'] + "/*/"))
 
 for dir_idx,input_target_dir in enumerate(input_dir):
@@ -23,9 +24,10 @@ for dir_idx,input_target_dir in enumerate(input_dir):
 	output_ligand_file = output_target_dir + target_id + "_ligand.pdb"
 
 	if os.path.exists(output_target_dir) == False:
-		os.system("mkdir %s" % output_target_dir)
+		os.system("mkdir -p %s" % output_target_dir)
 
 	if os.path.exists(output_ligand_file) == False:
 		os.system(obabel_command % (input_ligand_file, output_ligand_file))
 
-	print(dir_idx)
+	if dir_idx % 500 == 0:
+		print(dir_idx)

@@ -1,4 +1,4 @@
 interaction_labels: ['halogenbond', 'hbond_a', 'hbond_d', 'hydroph_interaction', 'pication_c', 'pication_r', 'pistack', 'saltbridge_n', 'saltbridge_p']
 atom_labels: ['C', 'CA', 'CB', 'CD', 'CD1', 'CD2', 'CE', 'CE1', 'CE2', 'CE3', 'CG', 'CG1', 'CG2', 'CH2', 'CZ', 'CZ2', 'CZ3', 'DUMMY', 'N', 'ND1', 'ND2', 'NE', 'NE1', 'NE2', 'NH1', 'NH2', 'NZ', 'O', 'OD1', 'OD2', 'OE1', 'OE2', 'OG', 'OG1', 'OH', 'OXT', 'SD', 'SG']
-edge_labels: ['DOUBLE', 'RING', 'SINGLE', 'TRIPLE', 'covalent', 'interaction', 'spatial'] 
+edge_labels: ['DOUBLE', 'RING', 'SINGLE', 'TRIPLE', 'covalent', 'interaction', 'spatial', 'voxel'] 
 

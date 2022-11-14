@@ -6,14 +6,36 @@ import yaml
 import pickle
 from plip.structure.preparation import PDBComplex
 
-
 with open('config.yaml', 'r') as config_file:  
   config = yaml.safe_load(config_file)
 
-with open(config['protein_config'], 'r') as config_file:  
+with open(config['protein_config_file'], 'r') as config_file:  
   protein_config = yaml.safe_load(config_file)
 
 pdb_dir = sorted(glob.glob(config['processed_pdbbind_dir'] + "*/"))
+
+##---------PROCESS BATCH
+batch_number = int(sys.argv[1])
+batch_count = int(sys.argv[2])
+
+batch_size = int(len(pdb_dir) / batch_count)
+batch_remainder = len(pdb_dir) % batch_count
+
+if batch_number <= batch_remainder:
+    batch_start_offset = batch_number-1
+    batch_end_offset = batch_number 
+else:
+    batch_start_offset = batch_remainder
+    batch_end_offset = batch_remainder
+
+batch_start_index = (batch_number - 1) * batch_size + batch_start_offset
+batch_end_index = (batch_number - 1) * batch_size + batch_size + batch_end_offset
+
+if batch_number < batch_count:
+    batch = pdb_dir[batch_start_index:batch_end_index]
+else:
+    batch = pdb_dir[batch_start_index:]
+##---------PROCESS BATCH
 
 def mean(l):
     return sum(l) / len(l)
@@ -83,49 +105,6 @@ def get_interaction_data(pdb_file):
 
     return interaction_data
 
-# def get_plip_atom_index_dict(pdb_file):
-#     idx_dict = {}
-
-#     with open(pdb_file,'r') as pdb_in:
-#         heavy_atom_index = 1 
-
-#         for line in pdb_in:
-#             parsed_line = re.split(r"\s+", line)
-#             line_type = parsed_line[0]
-
-#             if line_type in ['ATOM', 'HETATM']:
-#                 if line[77] == 'H':
-#                     continue
-
-#                 # if parsed_line[3] == 'HOH':
-#                 #     continue
-
-#                 idx_dict[heavy_atom_index] = int(parsed_line[1])
-#                 heavy_atom_index += 1
-
-#     print(idx_dict.keys())
-#     return idx_dict
-
-# def get_molecular_graph_data(pdb_file):
-#     content_string = ""
-#     capture = False
-
-#     with open(pdb_file, 'r') as pdb_in:
-#         for line in pdb_in:
-#             if line[:6] == 'HETATM':
-#                 capture = True 
-
-#             if capture == True:
-#                 if line[:3] == 'END':
-#                     capture = False
-#                     break
-
-#                 content_string += line
-#                 continue
-
-#     return content_string
-
-
 def stringify_atom_idx(number, total_width):
     number = str(number)
     padding = total_width - len(number) 
@@ -134,7 +113,9 @@ def stringify_atom_idx(number, total_width):
 
 for pdb_idx, target_dir in enumerate(pdb_dir):
     target_id = target_dir.split('/')[-2]
-    print(pdb_idx, target_id)
+    if pdb_idx % 500 == 0:
+        print(pdb_idx)
+    # print(pdb_idx, target_id)
 
     if target_id in ['readme', 'index']:
         continue
@@ -144,32 +125,37 @@ for pdb_idx, target_dir in enumerate(pdb_dir):
     complex_pdb = target_dir + "%s_complex.pdb" % target_id
     interaction_profile = target_dir + "%s_ip.pkl" % target_id
 
-    complex_pdb_content = ""
-    atom_idx = -1
+    #DEBUG#
+    if os.path.exists(interaction_profile) == False:
+        print(target_id)
+    #DEBUG#
 
-    with open(protein_pdb, 'r') as protein_in:
-        for line in protein_in:
-            if line[:6].strip() in ['HETATM', 'ATOM']:
-                atom_idx = int(line[6:11].strip())
+    # complex_pdb_content = ""
+    # atom_idx = -1
 
-            if line[:3] == 'END':
-                continue
+    # with open(protein_pdb, 'r') as protein_in:
+    #     for line in protein_in:
+    #         if line[:6].strip() in ['HETATM', 'ATOM']:
+    #             atom_idx = int(line[6:11].strip())
 
-            complex_pdb_content += line 
+    #         if line[:3] == 'END':
+    #             continue
 
-    with open(ligand_pdb, 'r') as ligand_in:
-        for line in ligand_in:
-            if line[:6].strip() not in ['HETATM', 'ATOM']: 
-                continue
-            atom_idx += 1
-            line = line[:6] + stringify_atom_idx(atom_idx, 5) + line[11:] 
-            complex_pdb_content += line
+    #         complex_pdb_content += line 
 
-    complex_pdb_content += "END\n"
+    # with open(ligand_pdb, 'r') as ligand_in:
+    #     for line in ligand_in:
+    #         if line[:6].strip() not in ['HETATM', 'ATOM']: 
+    #             continue
+    #         atom_idx += 1
+    #         line = line[:6] + stringify_atom_idx(atom_idx, 5) + line[11:] 
+    #         complex_pdb_content += line
 
-    with open(complex_pdb, 'w') as complex_out:
-        complex_out.write(complex_pdb_content)
+    # complex_pdb_content += "END\n"
 
-    interaction_data = get_interaction_data(complex_pdb) 
-    pickle.dump(interaction_data, open(interaction_profile, 'wb'))
-    os.remove(complex_pdb)
+    # with open(complex_pdb, 'w') as complex_out:
+    #     complex_out.write(complex_pdb_content)
+
+    # interaction_data = get_interaction_data(complex_pdb) 
+    # pickle.dump(interaction_data, open(interaction_profile, 'wb'))
+    # os.remove(complex_pdb)

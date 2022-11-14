@@ -1,5 +1,4 @@
 import sys
-import numpy
 import os
 import glob
 import yaml
@@ -11,7 +10,6 @@ MAX_DISTANCE = 25
 
 ligand_dir = sorted(glob.glob(config['processed_pdbbind_dir'] + "*/"))
 protein_dir = config['pdbbind_dir']
-
 
 def get_distance(x,y):
     total = 0 
@@ -28,9 +26,35 @@ def stringify_atom_idx(number, total_width):
     return " "*padding + number
 
 
-for target_idx, target_dir in enumerate(ligand_dir):
-    print(target_idx)
+# ----- SLURM BATCHING ----- #
+
+batch_number = int(sys.argv[1])
+batch_count = int(sys.argv[2])
+
+batch_size = int(len(ligand_dir) / batch_count)
+batch_remainder = len(ligand_dir) % batch_count
+
+if batch_number <= batch_remainder:
+    batch_start_offset = batch_number-1
+    batch_end_offset = batch_number 
+else:
+    batch_start_offset = batch_remainder
+    batch_end_offset = batch_remainder
+
+batch_start_index = (batch_number - 1) * batch_size + batch_start_offset
+batch_end_index = (batch_number - 1) * batch_size + batch_size + batch_end_offset
+
+if batch_number < batch_count:
+    batch = ligand_dir[batch_start_index:batch_end_index]
+else:
+    batch = ligand_dir[batch_start_index:]
+
+# -------------------------- #
+
+for target_idx, target_dir in enumerate(batch):
     target_id = target_dir.split('/')[-2]
+
+    print(target_idx, target_id)
 
     if target_id in ['index','readme']:
         continue
