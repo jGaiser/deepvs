@@ -27,15 +27,14 @@ def one_hot_encoding(x, permitted_list):
 
 def get_atom_features(atom, 
                       use_chirality = True, 
-                      hydrogens_implicit = True):
+                      hydrogens_implicit = False):
     """
     Takes an RDKit atom object as input and gives a 1d-numpy array of atom features as output.
     """
     # define list of permitted atoms
     
     # permitted_list_of_atoms =  ['C','N','O','S', 'F','Si','P','Cl','Br','Mg','Na','Ca','Fe','As','Al','I', 'B','V','K','Tl','Yb','Sb','Sn','Ag','Pd','Co','Se','Ti','Zn', 'Li','Ge','Cu','Au','Ni','Cd','In','Mn','Zr','Cr','Pt','Hg','Pb','Unknown']
-    nonmetals = ['As', 'At', 'B', 'Br', 'C', 'Cl', 'F', 'H', 'I', 'N', 'O', 'P', 'S', 'Se', 'Si', 'Te'] 
-    permitted_list_of_atoms = nonmetals + ['metal']
+    permitted_list_of_atoms = ['As', 'At', 'B', 'Br', 'C', 'Cl', 'F', 'I', 'N', 'O', 'P', 'S', 'Se', 'Si', 'Te'] 
     
     if hydrogens_implicit == False:
         permitted_list_of_atoms = ['H'] + permitted_list_of_atoms
@@ -66,9 +65,13 @@ def get_atom_features(atom,
         chirality_type_enc = one_hot_encoding(str(atom.GetChiralTag()), ["CHI_UNSPECIFIED", "CHI_TETRAHEDRAL_CW", "CHI_TETRAHEDRAL_CCW", "CHI_OTHER"])
         atom_feature_vector += chirality_type_enc
     
-    if hydrogens_implicit == True:
-        n_hydrogens_enc = one_hot_encoding(int(atom.GetTotalNumHs()), [0, 1, 2, 3, 4, "MoreThanFour"])
-        atom_feature_vector += n_hydrogens_enc
+    # if hydrogens_implicit == True:
+    #     n_hydrogens_enc = one_hot_encoding(int(atom.GetTotalNumHs()), [0, 1, 2, 3, 4, "MoreThanFour"])
+    #     atom_feature_vector += n_hydrogens_enc
+
+    n_hydrogens_enc = one_hot_encoding(int(atom.GetTotalNumHs()), [0, 1, 2, 3, 4, "MoreThanFour"])
+    atom_feature_vector += n_hydrogens_enc
+
     return np.array(atom_feature_vector)
 
 def get_bond_features(bond, 
@@ -94,7 +97,7 @@ def get_bond_features(bond,
     return np.array(bond_feature_vector)
 
 
-def generate_mol_graph(mol):
+def generate_mol_graph(mol, y):
     """
     Inputs:
     
@@ -141,4 +144,4 @@ def generate_mol_graph(mol):
     # y_tensor = torch.tensor(np.array([y_val]), dtype = torch.float)
     
     # construct Pytorch Geometric data object and return
-    return Data(x = X, edge_index = E, edge_attr = EF)
+    return Data(x = X, edge_index = E, edge_attr = EF, y=y)

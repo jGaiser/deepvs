@@ -4,6 +4,7 @@ import sys
 import glob
 import yaml
 from copy import deepcopy
+import os
 from graphein.protein.config import ProteinGraphConfig
 from graphein.protein.graphs import construct_graph
 from graphein.protein.edges.atomic import add_atomic_edges, add_bond_order, add_ring_status 
@@ -20,12 +21,14 @@ with open(config['protein_config_file'], 'r') as config_file:
 
 protein_atom_labels = protein_config['atom_labels']
 protein_edge_labels = protein_config['edge_labels']
-interaction_labels = protein_config['interaction_labels']
+INTERACTION_LABELS = protein_config['interaction_labels']
 
 graphein_param_dict = {"granularity": "atom", 
                        "edge_construction_functions": [add_atomic_edges, add_bond_order, add_ring_status],
                        "deprotonate": True,
                        "verbose": False}
+
+pocket_graph_dir = config['pocket_graph_dir']
 
 graphein_config = ProteinGraphConfig(**graphein_param_dict)
 
@@ -57,6 +60,12 @@ def update_edge_index(edge_index, v1, v2):
     sink_list =   edge_index[1] + [v2,v1]
     return [source_list, sink_list]
 
+def one_hot_update(reference, og_onehot, update_list):
+    for item in update_list:
+        og_onehot[reference.index(item)] = 1
+
+    return og_onehot
+
 pdb_dir = sorted(glob.glob(config['processed_pdbbind_dir'] + "*/"))
 
 # ----- SLURM BATCH ----- #
@@ -83,6 +92,15 @@ else:
     batch = pdb_dir[batch_start_index:]
 
 # ----------------------- #
+pruned_batch = []
+
+for target_dir in batch:
+    target_id = target_dir.split('/')[-2]
+    if os.path.exists("%s%s_pocket_graph.pkl" % (pocket_graph_dir, target_id)):
+        continue
+    pruned_batch.append(target_dir)
+
+batch = pruned_batch
 batch_total = len(batch)
 
 for t_idx, target_dir in enumerate(batch):
@@ -98,13 +116,22 @@ for t_idx, target_dir in enumerate(batch):
     edgelist = []
     edge_index = [[],[]]
 
-<<<<<<< HEAD
-=======
-    with open("%s%s_2_1_0_3.vox" % (target_dir, target_id), 'r') as vox_in:
->>>>>>> ab469db92b2cf54761b464dc0461c7f707447d12
+    with open(target_dir + "%s_2_1_0_3.vox" % target_id, 'r') as vox_in:
         for line in vox_in:
             line = line.rstrip()
             voxel_data.append([float(x) for x in line.split(' ')])
+
+    pocket_y = np.zeros((len(voxel_data), len(INTERACTION_LABELS)))
+
+    ip = pickle.load(open("%s%s_ip.pkl" % (target_dir, target_id), 'rb'))
+
+    for itype, icoords in ip.items():
+        for xyz in icoords:
+            voxel_distances = np.array([get_distance(x, xyz) for x in voxel_data])
+            sorted_voxel_indices = np.argsort(voxel_distances)
+            interacting_voxel_idx = sorted_voxel_indices[0]
+
+            pocket_y[interacting_voxel_idx] = one_hot_update(INTERACTION_LABELS, pocket_y[interacting_voxel_idx], [itype])
 
     protein_graph = construct_graph(config=graphein_config, pdb_path="%s%s_protein_25.pdb" % (target_dir, target_id))
 
@@ -164,11 +191,13 @@ for t_idx, target_dir in enumerate(batch):
         edge_index = update_edge_index(edge_index, v1, v2)
         edgelist += [edge_features, edge_features]
 
+    protein_atom_count = len(nodelist) - len(voxel_data)
+    pocket_y = torch.vstack((torch.tensor(pocket_y), torch.zeros((protein_atom_count, len(INTERACTION_LABELS)))))
+
     edge_index = torch.tensor(edge_index, dtype=torch.long)
     node_features = torch.tensor(nodelist, dtype=torch.float)
     edge_features = torch.tensor(edgelist, dtype=torch.float)
-        
-    data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_features)
-    pickle.dump(data, open("%s%s_pocket_graph.pkl" % (target_dir, target_id), 'wb'))
-    print("%s%s_pocket_graph.pkl" % (target_dir, target_id))
 
+    data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_features, y=pocket_y)
+    pickle.dump(data, open("%s%s_pocket_graph.pkl" % (pocket_graph_dir, target_id), 'wb'))
+    # print("%s%s_pocket_graph.pkl" % (target_dir, target_id))

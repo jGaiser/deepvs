@@ -15,6 +15,13 @@ import rdkit_utils
 with open('config.yaml', 'r') as config_file:  
     config = yaml.safe_load(config_file)
 
+with open(config['protein_config_file'], 'r') as config_file:  
+    protein_config = yaml.safe_load(config_file)
+
+INTERACTION_LABELS = protein_config['interaction_labels']
+# ['halogenbond', 'hbond_a', 'hbond_d', 'hydroph_interaction', 'pication_c', 'pication_r', 'pistack', 'saltbridge_n', 'saltbridge_p']
+mol_graph_dir = config['mol_graph_dir']
+
 def get_distance(v1,v2):
     total = 0
 
@@ -23,6 +30,11 @@ def get_distance(v1,v2):
 
     return total**0.5
 
+def one_hot_update(reference, og_onehot, update_list):
+    for item in update_list:
+        og_onehot[reference.index(item)] = 1
+
+    return og_onehot
 
 pdb_dir = sorted(glob.glob(config['processed_pdbbind_dir'] + "*/"))
 
@@ -58,53 +70,65 @@ atom_types = []
 
 for t_idx, target_dir in enumerate(batch):
     target_id = target_dir.split('/')[-2]    
-    # print(target_id, "%s of %s" % (t_idx, batch_total))
-    if t_idx % 100 == 0:
-        print(target_id, "%s of %s" % (t_idx, total))
+    print("\n", target_id, "%s of %s" % (t_idx, batch_total))
+    # if t_idx % 100 == 0:
+    #     print(target_id, "%s of %s" % (t_idx, total))
 
     pdb_file_content = ""
-    pdb_data = []
+    pdb_H_count = 0
+    pdb_heavy_atom_data = []
 
     with open("%s%s_ligand.pdb" % (target_dir, target_id), 'r') as pdb_in:
         for line in pdb_in:
             pdb_file_content += line
 
             if line[:6].strip() in ['ATOM', 'HETATM']:
-                if line[12:16].strip() == 'H':
+                if line[76:78].strip() == 'H':
+                    pdb_H_count += 1
                     continue
 
-                pdb_data.append([line[12:16].strip(),
+                pdb_heavy_atom_data.append([line[12:16].strip(),
                                 float(line[30:38].strip()),
                                 float(line[38:46].strip()),
                                 float(line[46:54].strip())])
 
+    mol_y = np.zeros((len(pdb_heavy_atom_data), len(INTERACTION_LABELS)))
     ip = pickle.load(open("%s%s_ip.pkl" % (target_dir, target_id), 'rb'))
 
     for itype, icoords in ip.items():
-        print(itype)
+        # print(itype.upper(), "\n---")
 
         for xyz in icoords:
-            ### TODO:
-            ### UPDATE LIGAND ATOM WITH INTERACTION DATA
+            pdb_data_distances = np.array([get_distance(x[-3:], xyz) for x in pdb_heavy_atom_data])
+            sorted_pdb_data_indices = np.argsort(pdb_data_distances)
+            # print(sorted_pdb_data_indices)
 
 
+            if itype in ['pication_r', 'pistack']:
+                min_distance = pdb_data_distances[sorted_pdb_data_indices[0]]
 
+                for a_i, atom_idx in enumerate(sorted_pdb_data_indices):
+                    if pdb_data_distances[atom_idx] - min_distance > 0.5:
+                        break
 
+                interacting_atoms = sorted_pdb_data_indices[:a_i]
+            else:
+                interacting_atoms = [sorted_pdb_data_indices[0]]
 
-    sys.exit()
+            for atom_idx in interacting_atoms:
+                mol_y[atom_idx] = one_hot_update(INTERACTION_LABELS, mol_y[atom_idx], [itype])
+
+    mol_y = torch.vstack([torch.tensor(mol_y), torch.zeros((pdb_H_count, len(INTERACTION_LABELS)))])
 
     # with open("%s%s_ligand.smi" % (target_dir, target_id), 'r') as smi_in:
     #     for line in smi_in:
     #         smi_string = re.split(r'\s+', line)[0]
 
     try:
-        molecule = Chem.rdmolfiles.MolFromPDBBlock(pdb_file_content,removeHs=False)
-
-        for atom in molecule.GatAtoms():
-            print(atom.GetSymbol())
+        molecule = Chem.rdmolfiles.MolFromPDBBlock(pdb_file_content, removeHs=False)
 
         # molecule = Chem.MolFromSmiles(smi_string)
-        # g = rdkit_utils.generate_mol_graph(molecule)
+        g = rdkit_utils.generate_mol_graph(molecule, mol_y)
 
         # admatrix = rdmolops.GetAdjacencyMatrix(molecule)
         # print(molecule)
@@ -128,4 +152,4 @@ for t_idx, target_dir in enumerate(batch):
         print(e, target_dir)
 
     # print("%s%s_ligand_graph.pkl" % (target_dir, target_id))
-    # pickle.dump(g, open("%s%s_ligand_graph.pkl" % (target_dir, target_id), 'wb'))
+    pickle.dump(g, open("%s%s_mol_graph.pkl" % (mol_graph_dir, target_id), 'wb'))

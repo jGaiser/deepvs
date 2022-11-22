@@ -5,3 +5,6 @@ protein_config_file: "../../data/protein_config.yaml"
 voxel_graph_dir: "../../data/graph_data/proteins/voxel_graphs/"
 interaction_voxel_graph_dir: "../../data/graph_data/proteins/interaction_voxel_graphs/"
 corpus_dir: "../../data/graph_data/corpus/"
+mol_graph_dir: "../../data/graph_data/molecules/"
+pocket_graph_dir: "../../data/graph_data/pockets/"
+
