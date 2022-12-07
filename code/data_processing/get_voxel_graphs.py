@@ -1,4 +1,5 @@
 import pickle
+import os
 import sys
 import glob
 import yaml
@@ -19,7 +20,7 @@ with open(config['protein_config_file'], 'r') as config_file:
 
 protein_atom_labels = protein_config['atom_labels']
 protein_edge_labels = protein_config['edge_labels']
-interaction_labels = protein_config['interaction_labels']
+INTERACTION_LABELS = protein_config['interaction_labels']
 
 graphein_param_dict = {"granularity": "atom", 
                        "edge_construction_functions": [add_atomic_edges, add_bond_order, add_ring_status],
@@ -51,21 +52,55 @@ def generate_edge(edge_feature_list, edge_features, weight):
     feature_vec.append(weight)
     return feature_vec
 
+def one_hot_update(reference, og_onehot, update_list):
+    for item in update_list:
+        og_onehot[reference.index(item)] = 1
+
+    return og_onehot
+
 pdb_dir = sorted(glob.glob(config['processed_pdbbind_dir'] + "*/"))
-graph_dir = config['interaction_voxel_graph_dir']
+graph_dir = config['positive_voxel_graph_dir']
 
-# corpus = pickle.load(open(graph_dir + 'interaction_voxel_corpus.pkl', 'rb'))
 
-target_id_list = []
-voxel_graph_list = []
+# ----- SLURM BATCH ----- #
+batch_number = int(sys.argv[1])
+batch_count = int(sys.argv[2])
 
-for t_idx, target_dir in enumerate(pdb_dir):
-    if t_idx % 100 == 0:
-        print(t_idx)
+batch_size = int(len(pdb_dir) / batch_count)
+batch_remainder = len(pdb_dir) % batch_count
 
+if batch_number <= batch_remainder:
+    batch_start_offset = batch_number-1
+    batch_end_offset = batch_number 
+else:
+    batch_start_offset = batch_remainder
+    batch_end_offset = batch_remainder
+
+batch_start_index = (batch_number - 1) * batch_size + batch_start_offset
+batch_end_index = (batch_number - 1) * batch_size + batch_size + batch_end_offset
+
+if batch_number < batch_count:
+    batch = pdb_dir[batch_start_index:batch_end_index]
+else:
+    batch = pdb_dir[batch_start_index:]
+
+pruned_batch = []
+
+for target_dir in batch:
     target_id = target_dir.split('/')[-2]
-    protein_atom_data = []         
+    if os.path.exists("%s%s_voxel_positive_graphs.pkl" % (graph_dir, target_id)):
+        continue
+    pruned_batch.append(target_dir)
 
+batch = pruned_batch
+batch_total = len(batch)
+# ----------------------- #
+
+for t_idx, target_dir in enumerate(batch):
+    print("%s of %s" % (t_idx, batch_total), target_dir)
+    target_id = target_dir.split('/')[-2]
+
+    protein_atom_data = []         
     voxel_data = []
 
     with open("%s%s_2_1_0_3.vox" % (target_dir, target_id), 'r') as vox_in:
@@ -74,14 +109,38 @@ for t_idx, target_dir in enumerate(pdb_dir):
             voxel_data.append([float(x) for x in line.split(' ')])
 
     ip_data = pickle.load(open("%s%s_ip.pkl" % (target_dir, target_id), 'rb'))
-    
+
     if len(ip_data) == 0:
         continue
 
+    interaction_count = 0
+
+    for interaction_list in ip_data.values():
+        interaction_count += len(interaction_list)
+
+    voxel_graph_list = []
+    positive_voxels = []
+    voxel_y = []
+    
     protein_graph = construct_graph(config=graphein_config, pdb_path="%s%s_protein_25.pdb" % (target_dir, target_id))
 
     for interaction_type, interaction_coords in ip_data.items():
         for interaction_xyz in interaction_coords: 
+            closest_voxel = sorted(voxel_data, key=lambda x: get_distance(interaction_xyz, x))[0]
+            skip_voxel = False
+
+            if closest_voxel in positive_voxels:
+                voxel_idx = positive_voxels.index(closest_voxel)
+                skip_voxel = True
+            else:
+                positive_voxels.append(closest_voxel)
+                voxel_y.append([0 for x in INTERACTION_LABELS])
+                voxel_idx = -1
+
+            voxel_y[voxel_idx][INTERACTION_LABELS.index(interaction_type)] = 1
+
+            if skip_voxel: continue
+
             sorted_nodelist = [['DUMMY', 'DUMMY', interaction_xyz, 0]]
             sorted_node_labels = []
             node_features = []
@@ -149,10 +208,17 @@ for t_idx, target_dir in enumerate(pdb_dir):
             node_features = torch.tensor(node_features, dtype=torch.float)
             edge_features = torch.tensor(edge_features, dtype=torch.float)
                 
-            data = Data(x=node_features, edge_index=edge_index, 
-                        edge_attr=edge_features, y=interaction_labels.index(interaction_type))
-            
-            target_id_list.append(target_id)
-            voxel_graph_list.append(data)
+            voxel_graph_list.append({"x": node_features, 
+                                     "edge_index": edge_index,
+                                     "edge_attr": edge_features})
 
-pickle.dump([target_id_list, voxel_graph_list], open(graph_dir + 'interaction_voxel_corpus.pkl', 'wb'))
+    final_target_data = []
+
+    for graph_data, graph_y in zip(voxel_graph_list, voxel_y):
+        graph_data['y'] = torch.tensor(graph_y, dtype=torch.float32) 
+        final_target_data.append(Data(**graph_data))
+
+    pickle.dump(final_target_data, open('%s%s_voxel_positive_graphs.pkl' % (graph_dir, target_id), 'wb'))
+
+
+
